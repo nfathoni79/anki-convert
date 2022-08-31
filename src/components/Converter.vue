@@ -1,15 +1,16 @@
 <template>
   <div class="flex flex-col space-y-4 px-8">
     <div class="mx-auto">
-      <img alt="Vue logo" src="../assets/logo.png" />
+      <img alt="Anki Convert logo" src="../assets/logo.png" class="w-32 h-32" />
     </div>
     <div>
-      <input type="text" name="anki" id="anki" v-model="anki" placeholder="Enter translations..." class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-      <p>{{ converted }}</p>
+      <input type="text" name="anki" id="anki" v-model="translations" placeholder="Enter translations..." class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+      <span class="font-mono">{{ convertedTranslations }}</span>
     </div>
+
     <div>
-      <input type="text" name="definition" id="definition" v-model="definition" placeholder="Enter definitions..." class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-      <p>{{ convertedDefinition }}</p>
+      <input type="text" name="definition" id="definition" v-model="definitions" placeholder="Enter definitions..." class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+      <span class="font-mono">{{ convertedDefinitions }}</span>
     </div>
   </div>
 </template>
@@ -18,13 +19,13 @@
 export default {
   data() {
     return {
-      anki: null,
-      definition: null,
+      translations: null,
+      definitions: null,
     }
   },
   computed: {
-    converted() {
-        if (!this.anki) {
+    convertedTranslations() {
+        if (!this.translations) {
           return 'formatted translations'
         }
 
@@ -34,8 +35,8 @@ export default {
 
         let speechParts = []
         let meanings = []
-        speechParts = this.anki.match(speechPartsRegex)
-        meanings = this.anki.match(meaningsRegex)
+        speechParts = this.translations.match(speechPartsRegex)
+        meanings = this.translations.match(meaningsRegex)
 
         if (!speechParts || speechParts.length <= 0) {
           return 'no match'
@@ -64,8 +65,8 @@ export default {
 
         return htmlString
     },
-    convertedDefinition() {
-        if (!this.definition) {
+    convertedDefinitions() {
+        if (!this.definitions) {
           return 'formatted definitions'
         }
 
@@ -79,10 +80,10 @@ export default {
         let contents = []
         let examples = []
 
-        speechParts = this.definition.match(speechPartsRegex)
-        numbers = this.definition.match(numbersRegex)
-        contents = this.definition.match(contentsRegex)
-        examples = this.definition.match(examplesRegex)
+        speechParts = this.definitions.match(speechPartsRegex)
+        numbers = this.definitions.match(numbersRegex)
+        contents = this.definitions.match(contentsRegex)
+        examples = this.definitions.match(examplesRegex)
 
         if (!speechParts || speechParts.length <= 0) {
           return 'no match'
