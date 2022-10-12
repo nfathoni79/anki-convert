@@ -1,11 +1,11 @@
 <template>
-  <Converter />
+  <ConverterNew />
 </template>
 
 <script>
-import Converter from './components/Converter.vue'
+import ConverterNew from './components/ConverterNew.vue'
 
 export default {
-  components: { Converter },
+  components: { ConverterNew },
 }
 </script>
