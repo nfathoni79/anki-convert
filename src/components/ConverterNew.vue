@@ -6,7 +6,30 @@
 
     <form action="#" method="POST" @submit.prevent="convertAndAddToAnki">
       <div class="space-y-4">
-        <textarea id="raw" name="raw" rows="10" v-model="raw" placeholder="Enter raw data..." required
+        <div class="relative">
+          <textarea id="extractor" name="extractor" rows="2" v-model="extractor" disabled
+            class="block w-full rounded-md border-gray-300 shadow-sm
+            text-gray-500 font-mono
+            focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></textarea>
+
+          <button @click.prevent="copyExtractor"
+            class="m-2 absolute right-0 bottom-0
+            rounded-md border border-transparent
+            bg-gray-600 hover:bg-gray-700
+            px-2 py-1
+            text-sm text-white
+            focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+            {{ copyText }}
+          </button>
+        </div>
+
+        <textarea id="htmlString" name="htmlString" rows="4" v-model="htmlString" placeholder="Enter extracted HTML string..."
+          class="block w-full rounded-md border-gray-300 shadow-sm font-mono
+          focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></textarea>
+
+        <span v-if="htmlStringError" class="text-red-600">{{ htmlStringError }}</span>
+
+        <textarea id="parsed" name="parsed" rows="8" v-model="parsed" placeholder="Enter parsed string..." required
           class="block w-full rounded-md border-gray-300 shadow-sm
           focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></textarea>
 
@@ -26,16 +49,177 @@
 
 <script>
 import AnkiService from '../services/AnkiService'
+import { capitalize } from '../utils'
 
 export default {
   data() {
     return {
-      raw: '',
+      extractor: "copy(document.body.querySelector('c-wiz.zQTmif.SSPGKf.RvYhPd.BIdYQ.Q5Onnd.EXWswb > div.T4LgNb > div.WFnNle > c-wiz.MOkH4e.BSw7K.iYelWb.twDq5e > div.OlSOob > c-wiz.QsA0jb').innerHTML)",
+      htmlString: '',
+      htmlStringError: null,
+      copyText: 'Copy',
+      parsed: '',
+    }
+  },
+  watch: {
+    htmlString() {
+      this.parseHtml()
     }
   },
   methods: {
+    parseHtml() {
+      this.htmlStringError = null
+      if (this.htmlString == '') {
+        this.parsed = ''
+        return
+      }
+
+      try {
+        let template = document.createElement('template')
+        template.innerHTML = this.htmlString
+        const mainContainer = template.content
+
+        const inputSection = mainContainer.querySelector('div.ccvoYb.EjH7wc > div.AxqVh > div.OPPzxe')
+        const bottomSection = mainContainer.querySelector('div.kGmWO > c-wiz.zpzJBc > div.jTj8gd > div.a2Icud')
+        const defSection = bottomSection.querySelector('div.Sp3AF > div[jsname="SjRXy"] > div.I87fLc.FnSTic.XzOhkf > div.Dwvecf')
+
+        const transWrapper = bottomSection.querySelector('div.GQpbTd.WZapbb > div[jsname="YVjlBb"]')
+        let transSection = null
+        if (transWrapper.childElementCount > 0) {
+          transSection = transWrapper.querySelector('div.I87fLc.oLovEc.XzOhkf > div.Dwvecf > table.CFNMfb')
+        }
+
+        const enText = inputSection.querySelector('c-wiz.rm1UF.UnxENd.dHeVVb > span[jsname="ZdXDJ"] > span[ssk="6:FCIgBe"] > div.QFw9Te > div.A3dMNc > span[jsname="BvKnce"]').innerText
+        const enPhon = inputSection.querySelector('c-wiz.rm1UF.UnxENd.dHeVVb > div.UdTY9.BwTYAc > div.kO6q6e').innerText
+        const idText = inputSection.querySelector('c-wiz.sciAJc > div.QcsUad.BDJ8fb > div.usGWQd > div.KkbLmb > div.lRu31 > span.HwtZe > span.jCAhz.ChMk0b > span.ryNqvb').innerText
+
+        let firstSpeech = ''
+        let delayedFields = ''
+        let defString = ''
+        let transString = ''
+
+        // Parse definitions
+        for (let i = 0; i < defSection.childElementCount; i++) {
+          let child = defSection.children[i]
+
+          if (child.className == 'CF8Iy RZhose') {
+            // Fields in the beginning
+            delayedFields = this.parseFields(child)
+          } else if (child.className == 'KWoJId') {
+            // Part of speech
+            const speech = capitalize(child.querySelector('div.eIKIse').innerText)
+            defString += `[${speech}] `
+
+            // First part of speech for translation with no transSection
+            if (firstSpeech == '') {
+              firstSpeech = speech
+            }
+
+            // Fields after part of speech
+            const speechFieldWrapper = child.querySelector('div.CF8Iy.rJnFff')
+            if (speechFieldWrapper != null) {
+              delayedFields = this.parseFields(speechFieldWrapper)
+            }
+          } else if (child.className == 'eqNifb' || child.className == 'trQcMc') {
+            // Number
+            const number = child.querySelector('div.luGxAd > div.RSggmb').innerText
+            defString += `[${number}] `
+
+            // Delayed fields from the beginning or after part of speech
+            if (delayedFields != '') {
+              defString += `${delayedFields}`
+              delayedFields = ''
+            }
+
+            // Fields after number
+            const fieldsWrapper = child.querySelector('div.CF8Iy.CLHVBf')
+            if (fieldsWrapper != null) {
+              let fieldsString = ''
+              fieldsString = this.parseFields(fieldsWrapper)
+              defString += `${fieldsString}`
+            }
+
+            // Definition
+            const definition = child.querySelector('div.JAk00.OvhKBb > div.fw3eif').innerText
+            defString += `${definition} `
+
+            // Example
+            const exampleEl = child.querySelector('div.JAk00.OvhKBb > div.MZgjEb')
+            if (exampleEl != null) {
+              defString += `"${exampleEl.innerText}" `
+            } else {
+              defString += '"" '
+            }
+          }
+        }
+
+        // Parse translation
+        if (transSection == null) {
+          transString = `[${firstSpeech}] ${idText}.`
+        } else {
+          // Translations groups by part of speech
+          const transGroups = transSection.querySelectorAll('tbody.U87jab')
+
+          for (let i = 0; i < transGroups.length; i++) {
+            // One translations group
+            const transGroup = transGroups[i]
+
+            for (let j = 0; j < transGroup.childElementCount; j++) {
+              // One translation within a group
+              const child = transGroup.children[j]
+
+              if (j == 0) {
+                // Part of speech
+                transString += `[${capitalize(child.querySelector('th.yYp8Hb > div.G8Go6b > div.eIKIse.Nv4rrc').innerText)}] `
+                const firstTrans = child.querySelector('th.rsNpAc.S18kfe > div.KnIHac > span.kgnlhe').innerText
+
+                if (i == 0 && firstTrans != idText) {
+                  transString += `${idText}, ${firstTrans}`
+                } else {
+                  transString += `${firstTrans}`
+                }
+
+                if (transGroup.childElementCount == 1) {
+                  transString += '. '
+                } else {
+                  transString += ', '
+                }
+              } else if (j >= transGroup.childElementCount - 1) {
+                // Last translation of a group
+                transString += `${child.querySelector('th.rsNpAc.S18kfe > div.KnIHac > span.kgnlhe').innerText}. `
+              } else {
+                transString += `${child.querySelector('th.rsNpAc.S18kfe > div.KnIHac > span.kgnlhe').innerText}, `
+              }
+            }
+          }
+        }
+
+        this.parsed = `${enText}\n${enPhon}\n${transString}\n${defString}\n-`
+      } catch (error) {
+        this.htmlStringError = 'Invalid HTML string: ' + error
+        this.parsed = ''
+      }
+    },
+    copyExtractor() {
+      navigator.clipboard.writeText(this.extractor)
+      this.copyText = 'Copied!'
+
+      setTimeout(() => {
+        this.copyText = 'Copy'
+      }, 2000);
+    },
+    parseFields(fieldsWrapper) {
+      const fieldEls = fieldsWrapper.querySelectorAll('div.PG9puc')
+      let fieldsString = ''
+
+      for (const fieldEl of fieldEls) {
+        fieldsString += `(${fieldEl.innerText.toUpperCase()}) `
+      }
+
+      return fieldsString
+    },
     convertAndAddToAnki() {
-      const fieldList = this.raw.split('\n')
+      const fieldList = this.parsed.split('\n')
       const english = fieldList[0]
       const phonetic = fieldList[1] && fieldList[1] != '-' ? fieldList[1] : ''
       const indonesian = this.formatIndonesian(fieldList[2])
